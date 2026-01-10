@@ -140,10 +140,11 @@ SENDFROMのnotificationの部分はなんでもいいです
 初回実行は`src/scraper.js`を実行します
 
 ```bash
-node src/scraper.js
+node --env-file=.env src/scraper.js
 ```
 
 しばらくするとMFAコードの入力が求められます
+
 Code: が表示されたら、Google Authenticatorなどで生成されたコードを入力してください。
 
 ```
@@ -159,12 +160,15 @@ Waiting for final redirection to WebClass...
 ```
 
 ルートに`cookies.json`ができたことを確認してください
+
 これでWebClassに通常のログインが完了し、そのcookieが保存されます
 
+次回実行時はこのcookieが保存され、あのリンクを踏むだけでログインできます。つまりこのMFAコードの入力は不要です。
 
-次回からは
-```
-node index.js
+
+cookies.jsonがある場合は
+```bash
+node --env-file=.env index.js
 ```
 を実行します。cronで5分間隔とかに設定しておきます。
 
@@ -172,6 +176,13 @@ node index.js
 `index.js`を実行時にログインセッションが切れたら.envの` `のほうにメールが行きます
 するとまた`scraper.js`を実行してcookieを更新します
 
+
+### 補足
+独自ドメインからのメールはスパム対策に厳しく、簡単にブロックされる可能性があります（実際に僕は一度ブロックされました）
+
+回避策としてoutlookやGmailに一度送信し、そこから転送設定でチャネルメールアドレスに転送する方法があります
+
+必要に応じて対応してみてください
 
 ## contact
 `22126@yonago.kosen-ac.jp`
