@@ -1,0 +1,39 @@
+name: Run Notifier
+
+on:
+  push:
+    branches:
+      - actions
+  schedule:
+    - cron: '*/10 * * * *'
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Puppeteer browsers
+        run: npx puppeteer browsers install chrome
+
+      - name: Run script
+        run: node index.js
+        env:
+          WEBC_ID: ${{ secrets.WEBC_ID }}
+          WEBC_PASS: ${{ secrets.WEBC_PASS }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
