@@ -60,12 +60,12 @@ async function performLogin(page) {
     try {
         console.log('Waiting for authentication challenge...');
         const otpSelector = 'input[name="otc"], input[id="idTxtBx_SAOTCC_OTC"]';
-        await page.waitForSelector(otpSelector, { timeout:330000 });
+        await page.waitForSelector(otpSelector, { timeout: 10000 });
         const otpInput = await page.$(otpSelector);
 
         if (otpInput) {
             console.log('TOTP (Authenticator App) input detected.');
-            if (!config.otpSecret) {
+            if (!config.mfaSecret) {
                 throw new Error('MFA is required, but MFA_SECRET is not set in .env file.');
             }
             const token = generateTOTP();
@@ -76,7 +76,7 @@ async function performLogin(page) {
             console.log('MFA token submitted.');
         }
     } catch (e) {
-        console.log('TOTP input not found or timed out. Proceeding...');
+        console.log(`TOTP input not found or timed out. Proceeding...\n${e}`);
         await screenshot('debug_totp_step_failed');
     }
 
@@ -105,6 +105,11 @@ async function performLogin(page) {
 
     console.log(`Login successful! Landed on: ${page.url()}`);
 
+    // Ensure we are on the main dashboard before finishing
+    console.log(`Navigating to dashboard page: ${config.entryUrl}`);
+    await page.goto(config.entryUrl, { waitUntil: 'networkidle2' });
+    console.log(`Now on page: ${page.url()}`);
+
     // Save cookies for next time
     const cookies = await page.cookies();
     const cookiePath = path.resolve(__dirname, '../cookies.json');
@@ -131,7 +136,7 @@ export async function scrapeAssignments() {
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
 
         // 1. Try to use existing cookies
-        if (config.cookies.length > 0) {
+        if (config.cookies && config.cookies.length > 0) {
             console.log('Setting cookies...');
             await page.setCookie(...config.cookies);
         }
@@ -148,40 +153,107 @@ export async function scrapeAssignments() {
             console.log('Successfully accessed WebClass using existing session.');
         }
 
-        // --- Start Scraping ---
-        console.log('Navigating to assignment list...');
-        const reportListUrl = `${config.baseUrl}report_list.php`;
-        await page.goto(reportListUrl, { waitUntil: 'networkidle2' });
-
-        console.log('Scraping assignment data...');
-        const assignments = await page.evaluate(() => {
-            const rows = Array.from(document.querySelectorAll('.contents-display > table > tbody > tr'));
-            const courseHeaderRegex = /^(【.+】)$/;
-            let currentCourse = 'N/A';
-            const results = [];
-            for (const row of rows) {
-                const headerCell = row.querySelector('th.course-name');
-                if (headerCell && courseHeaderRegex.test(headerCell.innerText.trim())) {
-                    currentCourse = headerCell.innerText.trim();
-                } else if (row.cells.length >= 5) {
-                    results.push({
-                        course: currentCourse,
-                        status: row.cells[0].innerText.trim(),
-                        title: row.cells[1].innerText.trim(),
-                        startDate: row.cells[2].innerText.trim().replace(/\n/g, ' '),
-                        endDate: row.cells[3].innerText.trim().replace(/\n/g, ' '),
-                        submissionStatus: row.cells[4].innerText.trim(),
-                    });
-                }
-            }
-            return results;
+        // --- Start Scraping (Original Logic) ---
+        console.log('Extracting course links...');
+        console.log('Extracting course links...');
+        const courseLinks = await page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('a[href*="/webclass/course.php/"]'));
+            return links
+                .map(a => a.href)
+                .filter(href => href.includes('/login'))
+                .filter((v, i, a) => a.indexOf(v) === i);
         });
 
-        console.log(`Found ${assignments.length} assignments.`);
+        console.log(`Found ${courseLinks.length} unique courses.`);
+
+        if (courseLinks.length === 0) {
+            console.warn('No courses found! Saving debug info...');
+            const debugHtmlPath = path.resolve(__dirname, '../output/debug_no_courses.html');
+            const debugPngPath = path.resolve(__dirname, '../output/debug_no_courses.png');
+            fs.writeFileSync(debugHtmlPath, await page.content());
+            await page.screenshot({ path: debugPngPath, fullPage: true });
+            console.log(`Debug info saved to ${debugHtmlPath} and ${debugPngPath}`);
+        }
+
+        const allAssignments = [];
+
+        for (const courseUrl of courseLinks) {
+            console.log(`Processing course: ${courseUrl}`);
+
+            await limiter.schedule(async () => {
+                try {
+                    await page.goto(courseUrl, { waitUntil: 'networkidle2' });
+                } catch (e) {
+                    console.error(`Failed to load ${courseUrl}:`, e.message);
+                    return;
+                }
+            });
+
+            const courseTitle = await page.title();
+            console.log(`  Title: ${courseTitle}`);
+
+            const assignments = await page.evaluate((url) => {
+                const results = [];
+                const contentNodes = document.querySelectorAll('.cl-contentsList_content');
+
+                contentNodes.forEach(node => {
+                    const titleNode = node.querySelector('.cm-contentsList_contentName');
+                    const categoryNode = node.querySelector('.cl-contentsList_categoryLabel');
+                    const periodNodes = node.querySelectorAll('.cm-contentsList_contentDetailListItem');
+
+                    const title = titleNode ? titleNode.textContent.trim() : 'Unknown Title';
+                    const category = categoryNode ? categoryNode.textContent.trim() : 'Unknown Category';
+
+                    if (!['レポート', 'テスト', 'アンケート'].includes(category)) {
+                        return;
+                    }
+
+                    let period = '';
+                    let start = null;
+                    let deadline = null;
+
+                    periodNodes.forEach(pNode => {
+                        const label = pNode.querySelector('.cm-contentsList_contentDetailListItemLabel');
+                        const data = pNode.querySelector('.cm-contentsList_contentDetailListItemData');
+                        if (label && label.textContent.includes('利用可能期間') && data) {
+                            period = data.textContent.trim();
+                            const parts = period.split(' - ');
+                            if (parts.length > 1) {
+                                start = parts[0];
+                                deadline = parts[1];
+                            }
+                        }
+                    });
+
+                    if (deadline) {
+                        results.push({
+                            title,
+                            category,
+                            period,
+                            start,
+                            deadline,
+                            url,
+                        });
+                    }
+                });
+                return results;
+            }, courseUrl);
+
+            console.log(`  Found ${assignments.length} assignments in this course.`);
+
+            const cleanCourseTitle = courseTitle.replace(' - WebClass', '').trim();
+            assignments.forEach(a => {
+                a.course = cleanCourseTitle;
+                allAssignments.push(a);
+            });
+        }
+
+
+        console.log(`Found ${allAssignments.length} total assignments.`);
         const outputPath = path.resolve(outputDir, 'assignments.json');
-        fs.writeFileSync(outputPath, JSON.stringify(assignments, null, 2));
+        fs.writeFileSync(outputPath, JSON.stringify(allAssignments, null, 2));
         console.log(`Assignments saved to ${outputPath}`);
-        return assignments;
+        return allAssignments;
 
     } catch (error) {
         console.error('An error occurred during scraping:', error);
@@ -190,6 +262,8 @@ export async function scrapeAssignments() {
         console.error(`A screenshot has been saved to ${screenshotPath}`);
         return { loginRequired: true, error: error.message };
     } finally {
+        const screenshotPath = path.resolve(outputDir, 'result_screenshot.png');
+        await page.screenshot({ path: screenshotPath, fullPage: true });
         console.log('Closing browser...');
         await browser.close();
     }

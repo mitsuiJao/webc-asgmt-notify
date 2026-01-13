@@ -25,7 +25,7 @@ function base32ToBuffer(base32) {
 }
 
 function generateTOTP() {
-    const secretBase32 = config.otpSecret;
+    const secretBase32 = config.mfaSecret;
     const key = base32ToBuffer(secretBase32);
 
     const epoch = Math.round(new Date().getTime() / 1000.0);

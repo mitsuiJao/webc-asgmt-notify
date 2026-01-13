@@ -3,7 +3,6 @@
   "dependencies": {
     "bottleneck": "^2.19.5",
     "dotenv": "^17.2.3",
-    "otplib": "^13.1.0",
     "puppeteer": "^24.34.0",
     "resend": "^6.7.0"
   }
