@@ -20,7 +20,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download -n notification-state -D . || echo "No previous state found"
+          LAST_RUN_ID=$(gh run list --workflow cron.yml --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ -n "$LAST_RUN_ID" ]; then
+            echo "Found previous successful run: $LAST_RUN_ID"
+            gh run download "$LAST_RUN_ID" -n notification-state -D . || echo "Artifact not found in run $LAST_RUN_ID"
+          else
+            echo "No successful previous run found"
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
