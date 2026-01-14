@@ -8,9 +8,19 @@ jobs:
   run-script:
     runs-on: ubuntu-latest
     environment: secret
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download state from previous run
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download -n notification-state -D . || echo "No previous state found"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -30,3 +40,11 @@ jobs:
           SENDFROM: ${{ secrets.SENDFROM }}
           SENDTO: ${{ secrets.SENDTO }}
           MFA_SECRET: ${{ secrets.MFA_SECRET }}
+
+      - name: Upload state
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-state
+          path: notification_state.json
+          retention-days: 3
+          if-no-files-found: ignore
