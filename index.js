@@ -1,10 +1,21 @@
 import { scrapeAssignments } from "./src/scraper.js";
 import { sendNotification, sendLoginRequiredNotification } from "./src/sender.js";
 import { processNotifications } from "./src/notifier.js";
+import fs from "fs/promises";
+import path from "path";
 
 
 async function run() {
     try {
+        const outputDir = "./output";
+        const files = await fs.readdir(outputDir);
+        for (const file of files) {
+            if (file.startsWith("debug_")) {
+                await fs.unlink(path.join(outputDir, file));
+                console.log(`Deleted ${file}`);
+            }
+        }
+
         console.log("Running scraper...");
         const scrapeResult = await scrapeAssignments();
 
