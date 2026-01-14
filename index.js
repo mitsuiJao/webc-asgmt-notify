@@ -10,7 +10,7 @@ async function run() {
         const outputDir = "./output";
         const files = await fs.readdir(outputDir);
         for (const file of files) {
-            if (path.extname(file).toLowerCase() === ".png") {
+            if (file.startsWith("debug_")) {
                 await fs.unlink(path.join(outputDir, file));
                 console.log(`Deleted ${file}`);
             }
