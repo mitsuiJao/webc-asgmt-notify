@@ -15,8 +15,9 @@ const limiter = new Bottleneck({
 
 async function performLogin(page) {
     console.log('Initiating automated login...');
-    if (!config.username || !config.password) {
-        throw new Error('USER_ID and PASSWORD must be set in .env file.');
+    const { username, password } = config;
+    if (!username || !password) {
+        throw new Error('Username or password not configured in config.js.');
     }
 
     const screenshot = async (name) => {
@@ -32,7 +33,7 @@ async function performLogin(page) {
     try {
         console.log('Waiting for email input...');
         await page.waitForSelector('input[type="email"]', { timeout: 15000 });
-        await page.type('input[type="email"]', config.username);
+        await page.type('input[type="email"]', username);
         await page.click('input[type="submit"]'); // Next button
         console.log('Email submitted.');
     } catch (e) {
@@ -45,7 +46,7 @@ async function performLogin(page) {
         console.log('Waiting for password input...');
         await page.waitForSelector('input[type="password"]', { timeout: 10000 });
         await new Promise(r => setTimeout(r, 1000)); // Brief pause
-        await page.type('input[type="password"]', config.password);
+        await page.type('input[type="password"]', password);
         await Promise.all([
             page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 15000 }).catch(() => console.log('Navigation after password submit did not complete as expected, but continuing.')),
             page.click('input[type="submit"]') // Sign in button
@@ -66,7 +67,7 @@ async function performLogin(page) {
         if (otpInput) {
             console.log('TOTP (Authenticator App) input detected.');
             if (!config.mfaSecret) {
-                throw new Error('MFA is required, but MFA_SECRET is not set in .env file.');
+                throw new Error('MFA is required, but mfaSecret is not set in config.js.');
             }
             const token = generateTOTP();
             console.log(`Generated MFA token: ${token}. Entering...`);

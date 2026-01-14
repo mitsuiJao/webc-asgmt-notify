@@ -1,24 +1,23 @@
 import { Resend } from "resend";
+import config from "./config.js";
 
 export async function sendNotification(subject, body) {
-    const APIKEY = process.env.APIKEY;
-    if (!APIKEY) {
+    const { apikey, sendto, sendfrom } = config;
+    if (!apikey) {
         console.warn("APIKEY not set. Skipping email notification.");
         return;
     }
-    const sendTo = process.env.SENDTO;
-    if (!sendTo) {
+    if (!sendto) {
         console.warn("SENDTO not set. Skipping email notification.");
         return;
     }
 
-    const resend = new Resend(APIKEY);
-    const sendFrom = process.env.SENDFROM
+    const resend = new Resend(apikey);
 
     console.log(`Sending email with subject: "${subject}"`);
     const { data, error } = await resend.emails.send({
-        from: `WebClass Notifier <${sendFrom}>`,
-        to: sendTo,
+        from: `WebClass Notifier <${sendfrom}>`,
+        to: sendto,
         subject: subject,
         html: body,
     });
@@ -32,28 +31,29 @@ export async function sendNotification(subject, body) {
 }
 
 export async function sendLoginRequiredNotification() {
-    const APIKEY = process.env.APIKEY;
-    const loginEmail = process.env.USER_ID; // The email used for login
+    const { apikey, username } = config;
 
-    if (!APIKEY || !loginEmail) {
-        console.warn("APIKEY or USER_ID not set. Skipping login required notification.");
+    if (!apikey || !username) {
+        console.warn(
+            "APIKEY or USER_ID not set. Skipping login required notification."
+        );
         return;
     }
 
-    const resend = new Resend(APIKEY);
+    const resend = new Resend(apikey);
     const subject = "WebClass Scraper: Authentication Required";
     const body = `
         <h1>Authentication Required</h1>
         <p>The WebClass scraper requires you to re-authenticate.</p>
         <p>Please run the script manually in your terminal to enter the MFA code:</p>
         <pre>node --env-file=.env src/scraper.js</pre>
-        <p>This is a notification for the user: ${loginEmail}</p>
+        <p>This is a notification for the user: ${username}</p>
     `;
 
-    console.log(`Sending authentication required email to ${loginEmail}...`);
+    console.log(`Sending authentication required email to ${username}...`);
     const { data, error } = await resend.emails.send({
-        from: 'Scraper Alert <notification@mitsuijao.fun>',
-        to: loginEmail,
+        from: "Scraper Alert <notification@mitsuijao.fun>",
+        to: username,
         subject: subject,
         html: body,
     });
