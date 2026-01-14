@@ -8,6 +8,7 @@ import path from "path";
 async function run() {
     try {
         const outputDir = "./output";
+        await fs.mkdir(outputDir, { recursive: true });
         const files = await fs.readdir(outputDir);
         for (const file of files) {
             if (file.startsWith("debug_")) {
