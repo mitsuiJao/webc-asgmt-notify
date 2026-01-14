@@ -6,6 +6,7 @@ import path from "path";
 
 
 async function run() {
+    console.log("running!");
     try {
         const outputDir = "./output";
         await fs.mkdir(outputDir, { recursive: true });
