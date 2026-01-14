@@ -23,9 +23,9 @@ jobs:
       - name: Run script
         run: node index.js
         env:
-          USER_ID: ${{ secrets.USER_ID }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          APIKEY: ${{ secrets.APIKEY }}
-          SENDFROM: ${{ secrets.SENDFROM }}
-          SENDTO: ${{ secrets.SENDTO }}
-          MFA_SECRET: ${{ secrets.MFA_SECRET }}
+          USER_ID: ${{ env.USER_ID }}
+          PASSWORD: ${{ env.PASSWORD }}
+          APIKEY: ${{ env.APIKEY }}
+          SENDFROM: ${{ env.SENDFROM }}
+          SENDTO: ${{ env.SENDTO }}
+          MFA_SECRET: ${{ env.MFA_SECRET }}
