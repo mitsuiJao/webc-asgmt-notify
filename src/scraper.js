@@ -137,8 +137,22 @@ export async function scrapeAssignments() {
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
 
         // 1. Try to use existing cookies
-        if (config.cookies && config.cookies.length > 0) {
-            console.log('Setting cookies...');
+        // 1. Try to use existing cookies (prefer cookies.json if available)
+        const cookiePath = path.resolve(__dirname, '../cookies.json');
+        if (fs.existsSync(cookiePath)) {
+            console.log(`Loading cookies from ${cookiePath}...`);
+            const cookieContent = fs.readFileSync(cookiePath, 'utf8');
+            try {
+                const cookies = JSON.parse(cookieContent);
+                if (Array.isArray(cookies) && cookies.length > 0) {
+                    await page.setCookie(...cookies);
+                    console.log(`Loaded ${cookies.length} cookies from file.`);
+                }
+            } catch (e) {
+                console.error('Failed to parse cookies.json:', e);
+            }
+        } else if (config.cookies && config.cookies.length > 0) {
+            console.log('Setting cookies from config...');
             await page.setCookie(...config.cookies);
         }
 
